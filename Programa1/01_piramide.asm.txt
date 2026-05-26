@@ -1,0 +1,129 @@
+; ============================================================
+; 01_piramide.asm - Generador de Pirámide Centrada de Asteriscos
+; NASM + MinGW (Windows)
+; Ensamblar: nasm -f win32 01_piramide.asm -o 01_piramide.obj
+; Enlazar:   gcc -m32 01_piramide.obj -o 01_piramide.exe -nostartfiles -e_start
+; ============================================================
+
+global _start
+extern _GetStdHandle@4
+extern _WriteConsoleA@20
+extern _ReadConsoleA@20
+extern _ExitProcess@4
+
+section .data
+    msg_input   db "Ingresa el numero de filas (1-9): ", 0
+    msg_input_l equ $ - msg_input - 1
+    char_buf    db ' ', 0       ; buffer de 1 char reutilizable
+    newline     db 13, 10
+
+section .bss
+    buf         resb 16
+    written     resd 1
+    hStdOut     resd 1
+    hStdIn      resd 1
+    filas       resd 1          ; N guardado en memoria
+
+section .text
+_start:
+    push    -10
+    call    _GetStdHandle@4
+    mov     [hStdIn], eax
+
+    push    -11
+    call    _GetStdHandle@4
+    mov     [hStdOut], eax
+
+    ; Mostrar mensaje
+    push    0
+    push    written
+    push    msg_input_l
+    push    msg_input
+    push    dword [hStdOut]
+    call    _WriteConsoleA@20
+
+    ; Leer número de filas
+    push    0
+    push    written
+    push    15
+    push    buf
+    push    dword [hStdIn]
+    call    _ReadConsoleA@20
+
+    movzx   eax, byte [buf]
+    sub     eax, '0'
+    mov     [filas], eax        ; guardar N en memoria
+
+    ; --- Recorrer filas: fila = 1 .. N ---
+    ; Usamos [filas] como N y variables de stack como contadores
+    mov     ebx, 1              ; ebx = fila actual
+
+.fila_loop:
+    mov     eax, [filas]
+    cmp     ebx, eax
+    jg      .fin
+
+    ; === Imprimir espacios: (N - fila) ===
+    mov     eax, [filas]
+    sub     eax, ebx            ; eax = espacios a imprimir
+
+.space_loop:
+    test    eax, eax
+    jz      .do_stars
+    push    eax                 ; salvar contador espacios
+    push    ebx                 ; salvar fila
+
+    mov     byte [char_buf], ' '
+    push    0
+    push    written
+    push    1
+    push    char_buf
+    push    dword [hStdOut]
+    call    _WriteConsoleA@20
+
+    pop     ebx
+    pop     eax
+    dec     eax
+    jmp     .space_loop
+
+.do_stars:
+    ; === Imprimir asteriscos: (2*fila - 1) ===
+    mov     eax, ebx
+    add     eax, ebx
+    dec     eax                 ; eax = 2*fila - 1
+
+.star_loop:
+    test    eax, eax
+    jz      .do_newline
+    push    eax
+    push    ebx
+
+    mov     byte [char_buf], '*'
+    push    0
+    push    written
+    push    1
+    push    char_buf
+    push    dword [hStdOut]
+    call    _WriteConsoleA@20
+
+    pop     ebx
+    pop     eax
+    dec     eax
+    jmp     .star_loop
+
+.do_newline:
+    push    ebx
+    push    0
+    push    written
+    push    2
+    push    newline
+    push    dword [hStdOut]
+    call    _WriteConsoleA@20
+    pop     ebx
+
+    inc     ebx
+    jmp     .fila_loop
+
+.fin:
+    push    0
+    call    _ExitProcess@4
